@@ -42,16 +42,6 @@ ControlSignal Control::parseSignal(const std::string& data) {
         case ID_UNKNOWN:
             std::cerr << "Unknown module ID: " << signal.module_id << std::endl;
             break;
-        case ID_LED:
-            if (signal.opcode < 0 || signal.opcode >= OP_LED_MAX) {
-                std::cerr << "Unknown LED opcode: " << signal.opcode << std::endl;
-                signal.module_id = ID_UNKNOWN;
-                if (signal.param < 0 || signal.param >= LEDParam::PA_LED_MAX) {
-                    std::cerr << "Unknown LED param: " << signal.param << std::endl;
-                    signal.module_id = ID_UNKNOWN;
-                }  
-            } 
-            break;
         case ID_PANTILT:
             if (signal.opcode < 0 || signal.opcode >= OP_PANTILT_MAX) {
                 std::cerr << "Unknown pantilt opcode: " << signal.opcode << std::endl;

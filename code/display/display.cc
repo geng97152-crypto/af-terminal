@@ -8,7 +8,7 @@ extern "C" {
 Display::Display(const ModuleParams params): BaseModule(params)
 {
     if(init_framebuffer() < 0) {
-        std::cout << "error initializing framebuffer" << std::endl;
+        throw std::runtime_error("error initializing framebuffer /dev/fb0");
     }
     // 获取显示参数
     disp_width = get_framebuffer_width();
@@ -68,21 +68,11 @@ void Display::push_frame(const cv::Mat& frame)
         return;
     }
 
-    // // Screen width = 128, Screen height = 160, Pixel_size = 2
-    // if (frame.rows != this->disp_height || 
-    //     frame.cols != this->disp_width ||
-    //     frame.type() != CV_8UC3) 
-    // {   
-    //     std::cout << "frame size error" << std::endl;
-    //     std::cout << "frame .rows: " << frame.rows << std::endl;
-    //     std::cout << "frame.cols: " << frame.cols << std::endl;
-    //     std::cout << "frame.type() : " <<frame.type()  << std::endl;
-    //     return;
-    // }
+
     {
         std::lock_guard<std::mutex> lock(mutex); 
-        if (queue.size() < 10) 
-            queue.push(frame);
+        if (queue.size() < 3)
+            queue.push(frame.clone());
     }
     cond.notify_one();  // 通知显示
 }
@@ -98,15 +88,18 @@ void Display::display_on_lcd(void)
             return !queue.empty() || quit_flag; 
         });
 
+        if (quit_flag && queue.empty()) {
+            break;
+        }
+
         // 取出一帧
         cv::Mat frame = queue.front();
         queue.pop();
         lock.unlock(); 			// 释放锁 允许其他线程推送
 
-        cv::Mat resized_frame, rotated_frame;
+		cv::Mat resized_frame;
 		cv::resize(frame, resized_frame, cv::Size(disp_width, disp_height));
-		cv::rotate(resized_frame, rotated_frame, cv::ROTATE_90_CLOCKWISE);
-        cv::cvtColor(resized_frame, disp, cv::COLOR_RGB2BGR565);
+        cv::cvtColor(resized_frame, disp, cv::COLOR_BGR2BGR565);
 		framebuffer_set_frame((uint16_t*)disp.data, disp_width, disp_height);
     }
 }

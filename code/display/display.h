@@ -7,7 +7,6 @@
 #include <thread>
 #include <opencv2/opencv.hpp>
 #include <iostream>
-// #include "module.h"
 #include "abstractModule.h"
 
 class Display : public BaseModule

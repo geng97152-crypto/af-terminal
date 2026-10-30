@@ -61,7 +61,6 @@ void Uart::receive_thread_func()
         int bytes_read = read(serial_fd, recv_buf, sizeof(recv_buf));
         // 过滤回车
         if (bytes_read > 1) {
-            // LOG_DEBUG("rx_buffer: %s", recv_buf);
             uart_signal.emit(recv_buf);
             memset(recv_buf, 0, sizeof(recv_buf));
         }

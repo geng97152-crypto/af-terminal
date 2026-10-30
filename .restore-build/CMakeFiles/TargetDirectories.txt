@@ -1,0 +1,13 @@
+/home/geng/tool/luckfox-pico/shili/rkipc-terminal/.restore-build/CMakeFiles/rkipc_terminal.dir
+/home/geng/tool/luckfox-pico/shili/rkipc-terminal/.restore-build/CMakeFiles/edit_cache.dir
+/home/geng/tool/luckfox-pico/shili/rkipc-terminal/.restore-build/CMakeFiles/rebuild_cache.dir
+/home/geng/tool/luckfox-pico/shili/rkipc-terminal/.restore-build/CMakeFiles/list_install_components.dir
+/home/geng/tool/luckfox-pico/shili/rkipc-terminal/.restore-build/CMakeFiles/install.dir
+/home/geng/tool/luckfox-pico/shili/rkipc-terminal/.restore-build/CMakeFiles/install/local.dir
+/home/geng/tool/luckfox-pico/shili/rkipc-terminal/.restore-build/CMakeFiles/install/strip.dir
+/home/geng/tool/luckfox-pico/shili/rkipc-terminal/.restore-build/3rdparty.out/CMakeFiles/edit_cache.dir
+/home/geng/tool/luckfox-pico/shili/rkipc-terminal/.restore-build/3rdparty.out/CMakeFiles/rebuild_cache.dir
+/home/geng/tool/luckfox-pico/shili/rkipc-terminal/.restore-build/3rdparty.out/CMakeFiles/list_install_components.dir
+/home/geng/tool/luckfox-pico/shili/rkipc-terminal/.restore-build/3rdparty.out/CMakeFiles/install.dir
+/home/geng/tool/luckfox-pico/shili/rkipc-terminal/.restore-build/3rdparty.out/CMakeFiles/install/local.dir
+/home/geng/tool/luckfox-pico/shili/rkipc-terminal/.restore-build/3rdparty.out/CMakeFiles/install/strip.dir

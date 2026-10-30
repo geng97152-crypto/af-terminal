@@ -1,7 +1,10 @@
 cmake_minimum_required(VERSION 3.10)
 
-#  设置SDK路径
-set(SDK_PATH "/home/yuanjl/luckfox-pico")
+# 通过 -DSDK_PATH=... 或 LUCKFOX_SDK_PATH 指定 SDK，避免绑定开发者本机路径。
+set(SDK_PATH "$ENV{LUCKFOX_SDK_PATH}" CACHE PATH "Path to the Luckfox Pico SDK")
+if(NOT SDK_PATH)
+    message(FATAL_ERROR "SDK_PATH is not set. Export LUCKFOX_SDK_PATH or pass -DSDK_PATH=/absolute/path/to/luckfox-pico")
+endif()
 
 # 设置编译器
 set(CMAKE_C_COMPILER "${SDK_PATH}/tools/linux/toolchain/arm-rockchip830-linux-uclibcgnueabihf/bin/arm-rockchip830-linux-uclibcgnueabihf-gcc")
@@ -9,7 +12,7 @@ set(CMAKE_CXX_COMPILER "${SDK_PATH}/tools/linux/toolchain/arm-rockchip830-linux-
 
 
 # 创建项目
-project("rkipc_terminal")
+project("af_terminal")
 
 # 链接目录
 link_directories(${CMAKE_CURRENT_SOURCE_DIR}/lib)
@@ -33,18 +36,13 @@ set(CODE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/code")
 file(GLOB SRC_FILES 
                     "${CODE_DIR}/param/*.c"
                     "${CODE_DIR}/osd/*.c"
-                    "${CODE_DIR}/net/*.cc"
                     "${CODE_DIR}/display/*.cc"
                     "${CODE_DIR}/display/*.c"
                     "${CODE_DIR}/video/*.cc"
                     "${CODE_DIR}/video/*.c"
-                    "${CODE_DIR}/led/*.cpp"
-                    "${CODE_DIR}/led/*.c"
                     "${CODE_DIR}/ptz/*.cpp"
                     "${CODE_DIR}/ptz/*.c"
-                    "${CODE_DIR}/factory/*.cpp"
                     "${CODE_DIR}/observer/*.cpp"
-                    "${CODE_DIR}/observer/*.h"
                     "${CODE_DIR}/tcp/*.cpp"
                     "${CODE_DIR}/control/*.cpp"
                     "${CODE_DIR}/onvif/soap/*.c"
@@ -107,7 +105,6 @@ target_include_directories(${PROJECT_NAME} PRIVATE
                             ${CMAKE_CURRENT_SOURCE_DIR}/code/log
                             ${CMAKE_CURRENT_SOURCE_DIR}/code/net
                             ${CMAKE_CURRENT_SOURCE_DIR}/code/video
-                            ${CMAKE_CURRENT_SOURCE_DIR}/code/led
                             ${CMAKE_CURRENT_SOURCE_DIR}/code/ptz
                             ${CMAKE_CURRENT_SOURCE_DIR}/code/control
                             ${CMAKE_CURRENT_SOURCE_DIR}/code/onvif/soap
@@ -121,6 +118,7 @@ message(STATUS "model dir PATH:model")
 
 set(CMAKE_INSTALL_PREFIX "${CMAKE_CURRENT_SOURCE_DIR}/install/${PROJECT_NAME}_demo")
 install(TARGETS ${PROJECT_NAME} DESTINATION ${CMAKE_INSTALL_PREFIX})
+install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/code/rkipc.ini DESTINATION ${CMAKE_INSTALL_PREFIX})
 SET(MODEL_DIR "model")
 file(GLOB MODEL_FILES "${MODEL_DIR}/*")  
 install(FILES ${MODEL_FILES} DESTINATION ${CMAKE_INSTALL_PREFIX}/model)                    

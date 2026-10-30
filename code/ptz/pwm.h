@@ -16,15 +16,15 @@ extern "C" {
 
 #ifdef RV1106_MAX
 enum PWM_num {
-    PWM8_M1 = 8,
-    PWM9_M1 = 9,
+    PWM_TILT = 10, // 上方俯仰舵机：PWM10_M1 / GPIO1_C6
+    PWM_PAN = 11,  // 下方水平舵机：PWM11_M1 / GPIO1_C7
 };
 #endif  // RV1106_MAX
 
 // 定义 PWM 状态结构体
 struct Pwm_status {
     unsigned int period_ns;      // PWM 周期（纳秒）
-    char polarity[8];            // PWM 输出极性
+    char polarity[16];            // PWM 输出极性
     unsigned int duty_cycle_ns;  // PWM 占空比（纳秒）
     int enabled;                 // PWM 是否启用
 };
@@ -85,10 +85,10 @@ int pwm_set_duty_cycle(enum PWM_num pwm_num, unsigned int duty_cycle_ns);
 /**
  * @brief 设置 PWM 输出极性.
  *
- * 设置指定 PWM 通道的输出极性，可选值为 "normal" 或 "inverted".
+ * 设置指定 PWM 通道的输出极性，可选值为 "normal" 或 "inversed".
  *
  * @param pwm_num PWM 通道号.
- * @param polarity 输出极性，可选值为 "normal" 或 "inverted".
+ * @param polarity 输出极性，可选值为 "normal" 或 "inversed".
  * @return 成功返回 0，失败返回 -1.
  */
 int pwm_set_polarity(enum PWM_num pwm_num, const char* polarity);

@@ -3,7 +3,8 @@
 // osd
 #include "luckfox_osd.h"
 #include "luckfox_osd_draw.h"
-#include <unordered_set>
+#include "person_tracker.h"
+#include <chrono>
 
 VideoYOLO::VideoYOLO(ModuleParams params):VideoBase(params)
 {
@@ -60,74 +61,27 @@ void VideoYOLO::video_thread_func()
     LOG_DEBUG("************************video_thread_2 started success\n");
 
 
-    int line_pixel = 2;
+    PersonTrackerConfig tracker_config;
+    tracker_config.enabled = rk_param_get_int("ptz:auto_track_enable", 1) != 0;
+    tracker_config.min_confidence = std::max(0.01f, std::min(1.f,
+        rk_param_get_int("ptz:track_min_confidence_percent", 25) / 100.f));
+    tracker_config.interval_ms = std::max(80, rk_param_get_int("ptz:track_interval_ms", 200));
+    tracker_config.lost_timeout_ms = std::max(tracker_config.interval_ms,
+        rk_param_get_int("ptz:track_lost_timeout_ms", 800));
+    tracker_config.max_step = std::max(1, std::min(5, rk_param_get_int("ptz:track_max_step_deg", 3)));
+    tracker_config.dead_zone_x = std::max(0.02f, std::min(0.4f,
+        rk_param_get_int("ptz:track_dead_zone_x_percent", 8) / 100.f));
+    tracker_config.dead_zone_y = std::max(0.02f, std::min(0.4f,
+        rk_param_get_int("ptz:track_dead_zone_y_percent", 8) / 100.f));
+    const int display_source_width = std::max(1, rk_param_get_int("video.1:width", 720));
+    const int display_source_height = std::max(1, rk_param_get_int("video.1:height", 480));
+    tracker_config.view_width = std::min(1.f,
+        (display_source_height * 240 / 320) / (float)display_source_width);
+    PersonTracker tracker(tracker_config);
+    LOG_INFO("Person tracker: enabled=%d interval_ms=%d max_step=%d LCD_view_width=%.3f\n",
+             tracker_config.enabled, tracker_config.interval_ms,
+             tracker_config.max_step, tracker_config.view_width);
 
-    
-    int people_detect = 1;
-    int vehicle_detect = 1;
-    int pet_detect = 1;
-    
-    // detect classes set
-    std::unordered_set<int> detect_classes;
-    if (people_detect) {
-        detect_classes.insert(0);
-    }
-    if (vehicle_detect) {
-        detect_classes.insert(1);
-        detect_classes.insert(2);
-        detect_classes.insert(3);
-        detect_classes.insert(4);
-        detect_classes.insert(5);
-        detect_classes.insert(7);
-        detect_classes.insert(8);
-    } 
-    if (pet_detect) {
-        detect_classes.insert(15);
-        detect_classes.insert(16);
-    }
-
-    int ai_follow_enable = 1;           // 是否启用AI跟随功能（1=启用，0=禁用）
-    int ai_follow_people = 1;           // 是否跟随“人”目标（1=跟随，0=不跟随）
-    int ai_follow_vehicle = 0;          // 是否跟随“车辆”目标（1=跟随，0=不跟随）
-    int ai_follow_pet = 0;              // 是否跟随“宠物”目标（1=跟随，0=不跟随）
-    int ai_follow_tolerance_width = 100;  // 跟随时，水平方向的容忍偏移像素（小于该值不调整云台）
-    int ai_follow_tolerance_height = 100; // 跟随时，垂直方向的容忍偏移像素（小于该值不调整云台）
-    int ai_follow_roi_x = 50;           // 跟随感兴趣区域ROI左上角x坐标
-    int ai_follow_roi_y = 50;           // 跟随感兴趣区域ROI左上角y坐标
-    int ai_follow_roi_width = 2204;     // 跟随感兴趣区域ROI宽度
-    int ai_follow_roi_height = 1196;    // 跟随感兴趣区域ROI高度
-    int rgn_square_size = rgn_video_width * rgn_video_height; // 整个视频区域的像素面积（用于目标面积归一化评分）
-
-    // follow classes set
-    std::unordered_set<int> follow_classes;
-    if (ai_follow_enable) {
-        // 只能选择跟随一个目标，从前往后优先级递减
-        if (ai_follow_people) {
-            follow_classes.insert(0);
-        } else if (ai_follow_vehicle) {
-            follow_classes.insert(1);
-            follow_classes.insert(2);
-            follow_classes.insert(3);
-            follow_classes.insert(4);
-            follow_classes.insert(5);
-            follow_classes.insert(7);
-            follow_classes.insert(8);
-        } else if (ai_follow_pet) {
-            follow_classes.insert(15);
-            follow_classes.insert(16);
-        }
-    }
-
-    // follow target info
-    bool is_follow_target_detected;
-    // 当前帧跟随目标的左上角坐标(sX, sY)和右下角坐标(eX, eY)，用于表示目标在画面中的位置
-    int follow_sX, follow_sY, follow_eX, follow_eY;
-    // 上一帧跟随目标的左上角和右下角坐标，便于与当前目标做对比
-    int follow_sX_last, follow_sY_last, follow_eX_last, follow_eY_last;
-    // 当前帧跟随目标的置信度（目标被识别的可信程度，通常为0~1之间的小数）
-    float follow_target_prop;
-
-    
     // osd
     cv::Mat yuv420sp(video_height + video_height / 2, video_width, CV_8UC1);
     cv::Mat bgr(video_height, video_width, CV_8UC3);
@@ -135,44 +89,50 @@ void VideoYOLO::video_thread_func()
     vi_chn_init(viChannelId, video_width, video_height);
 
     int sX, sY, eX, eY;
-    char text[16];
     rknn_app_context_t rknn_app_ctx;
     object_detect_result_list od_results;
     const char *model_path = "./model/yolov5.rknn";
     memset(&rknn_app_ctx, 0, sizeof(rknn_app_context_t));
-    init_yolov5_model(model_path, &rknn_app_ctx);
+    if (init_yolov5_model(model_path, &rknn_app_ctx) != 0) {
+        LOG_ERROR("Failed to initialize YOLO model: %s\n", model_path);
+        vi_chn_deinit(pipeId, viChannelId);
+        return;
+    }
     init_post_process();
 
     RGN_HANDLE coverHandle = 0;
     std::vector<DrawTaskParams> params;
     OsdDraw osdDraw;
+    long long last_track_report_ms = 0;
 
     while (!quit_flag)
     {
-        yuv420sp.data = (unsigned char *)vi_get_frame(pipeId, viChannelId, video_width, video_height, &stViFrame);
+        unsigned char *vi_data = (unsigned char *)vi_get_frame(
+            pipeId, viChannelId, video_width, video_height, &stViFrame);
+        if (vi_data == nullptr) {
+            usleep(10 * 1000);
+            continue;
+        }
+        yuv420sp.data = vi_data;
         cv::cvtColor(yuv420sp, bgr, cv::COLOR_YUV420sp2BGR);
         cv::resize(bgr, bgr, cv::Size(video_width, video_height), 0, 0, cv::INTER_LINEAR);
 
         cv::Mat letterboxImage = letterbox(bgr, video_width, video_height);
         memcpy(rknn_app_ctx.input_mems[0]->virt_addr, letterboxImage.data, MODEL_HEIGHT * MODEL_HEIGHT * 3);
-        inference_yolov5_model(&rknn_app_ctx, &od_results);
-
-
-
-        // init follow target info
-        if (ai_follow_enable && follow_classes.size() > 0)
-        {
-            is_follow_target_detected = false;
-            follow_sX = 0;
-            follow_sY = 0;
-            follow_eX = 0;
-            follow_eY = 0;
-            follow_sX_last = 0;
-            follow_sY_last = 0;
-            follow_eX_last = 0;
-            follow_eY_last = 0;
-            follow_target_prop = 0;
+        memset(&od_results, 0, sizeof(od_results));
+        if (inference_yolov5_model(&rknn_app_ctx, &od_results) != 0) {
+            vi_release_frame(pipeId, viChannelId, &stViFrame);
+            tracker.clear();
+            LOG_ERROR("YOLO inference failed; skipping tracking frame\n");
+            continue;
         }
+
+        std::vector<LcdDetection> lcd_detections;
+        lcd_detections.reserve(od_results.count);
+        std::vector<LcdDetection> person_detections;
+        person_detections.reserve(od_results.count);
+
+
 
         for (int i = 0; i < od_results.count; i++)
         {
@@ -186,6 +146,20 @@ void VideoYOLO::video_thread_func()
                 eY = (int)(det_result->box.bottom);
                 mapCoordinates(&sX, &sY);
                 mapCoordinates(&eX, &eY);
+
+                LcdDetection lcd_det;
+                lcd_det.left = std::max(0.0f, std::min(1.0f, (float)sX / (float)video_width));
+                lcd_det.top = std::max(0.0f, std::min(1.0f, (float)sY / (float)video_height));
+                lcd_det.right = std::max(0.0f, std::min(1.0f, (float)eX / (float)video_width));
+                lcd_det.bottom = std::max(0.0f, std::min(1.0f, (float)eY / (float)video_height));
+                lcd_det.confidence = det_result->prop;
+                lcd_det.label = coco_cls_to_name(det_result->cls_id);
+                lcd_detections.push_back(lcd_det);
+                if (det_result->cls_id == 0) {
+                    lcd_det.label = "person";
+                    person_detections.push_back(lcd_det);
+                }
+
                 sX = (int)((float)sX / (float)video_width * rgn_video_width);
                 sY = (int)((float)sY / (float)video_height * rgn_video_height);
                 eX = (int)((float)eX / (float)video_width * rgn_video_width);
@@ -199,66 +173,11 @@ void VideoYOLO::video_thread_func()
                 task.h = eY - sY;
                 params.push_back(task);
 
-                // 更新跟随目标坐标，若有多个目标则选择置信度最高的目标，
-                // 若置信度相差不超过 0.1 则选择最靠近中心的目标
-                if (ai_follow_enable && follow_classes.count(det_result->cls_id) > 0)
-                {
-                    is_follow_target_detected = true;   // 用于判断是否检测到跟随目标
-
-                    bool update_target = false;         // 用于判断是否需要更新跟随目标
-
-                    if (follow_sX == 0 && follow_sY == 0 && follow_eX == 0 && follow_eY == 0)
-                    {
-                        // 初始化跟随目标
-                        update_target = true;
-                    }
-                    else
-                    {
-                        // 计算当前目标与视频中心的偏移
-                        int delta_x = (sX + eX) / 2 - rgn_video_width / 2;
-                        int delta_y = (sY + eY) / 2 - rgn_video_height / 2;
-                        // 计算上一个目标与视频中心的偏移
-                        int delta_last_x = (follow_sX_last + follow_eX_last) / 2 - rgn_video_width / 2;
-                        int delta_last_y = (follow_sY_last + follow_eY_last) / 2 - rgn_video_height / 2;
-
-                        // 计算当前目标的面积
-                        int target_area = (eX - sX) * (eY - sY);
-                        // 计算上一个目标的面积
-                        int last_target_area = (follow_eX_last - follow_sX_last) * (follow_eY_last - follow_sY_last);
-
-                        // 权衡置信度和面积，计算得分
-                        float square_coefficient = 0.6;
-                        float score = det_result->prop + square_coefficient * (float)target_area / (float)rgn_square_size;
-                        float last_score = follow_target_prop + square_coefficient * (float)last_target_area/ (float)rgn_square_size;
-
-                        // LOG_DEBUG("target_prop: %.3f, target_area: %d, score: %.3f\n", det_result->prop, target_area, score);
-                        // LOG_DEBUG("last_target_prop: %.3f, last_target_area: %d, last_score: %.3f\n", follow_target_prop, last_target_area, last_score);
-
-                        // 如果当前目标的得分更高，选择当前目标
-                        if (score > last_score)
-                        {
-                            update_target = true;
-                        }
-                    }
-
-                    // 如果决定更新目标，则更新目标的坐标和置信度
-                    if (update_target)
-                    {
-                        follow_sX = sX;
-                        follow_sY = sY;
-                        follow_eX = eX;
-                        follow_eY = eY;
-
-                        // 保存当前目标的坐标和置信度
-                        follow_sX_last = sX;
-                        follow_eX_last = eX;
-                        follow_sY_last = sY;
-                        follow_eY_last = eY;
-                        follow_target_prop = det_result->prop;
-                    }
-                }
             }
         }
+
+        // Emit empty snapshots too, otherwise an old box would remain on LCD.
+        detection_signal.emit(lcd_detections);
         
 
         if (params.size() > 0)
@@ -267,42 +186,22 @@ void VideoYOLO::video_thread_func()
         vi_release_frame(pipeId, viChannelId, &stViFrame);
 
 
-        if (ai_follow_enable && is_follow_target_detected)
-        {
-            // 计算目标中心位置与图像中心的偏移量
-            int cx = (follow_sX + follow_eX) / 2;
-            int cy = (follow_sY + follow_eY) / 2;
-
-            // 若不在感兴趣区域内则不跟随
-            if (cx < ai_follow_roi_x || cx > ai_follow_roi_x + ai_follow_roi_width ||
-                cy < ai_follow_roi_y || cy > ai_follow_roi_y + ai_follow_roi_height)
-            {
-                continue;
-            }
-
-            int delta_x = cx - rgn_video_width / 2;
-            int delta_y = cy - rgn_video_height / 2;
-
-            // 设置容忍范围，若偏移量在容忍范围内则不调整云台
-            if (abs(delta_x) < ai_follow_tolerance_width && abs(delta_y) < ai_follow_tolerance_height)
-            {
-                continue;
-            }
-
-            // LOG_DEBUG("follow target: (%d, %d, %d, %d)\n", follow_sX, follow_sY, follow_eX, follow_eY);
-            // LOG_DEBUG("cx: %d, cy: %d\n", cx, cy);
-            // LOG_DEBUG("delta_x: %d, delta_y: %d\n", delta_x, delta_y);
-
-            // 根据偏移量计算云台需要调整的角度，基于画幅 左右 90°，俯仰 45°，加上系数微调
-            float pan_coefficient = 0.3;
-            float tilt_coefficient = 0.3;
-            int delta_pan = (int)(pan_coefficient * (float)delta_x / (float)rgn_video_width * 90);
-            int delta_tilt = (int)(tilt_coefficient * (float)delta_y / (float)rgn_video_height * 45);
-
-            // LOG_DEBUG("delta_pan: %d, delta_tilt: %d\n", delta_pan, delta_tilt);
-
-            // 发射信号来调整云台位置
-            signal_adjust_pantilt.emit(delta_pan, delta_tilt);  // 传递偏移量给舵机控制类
+        const long long now = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now().time_since_epoch()).count();
+        const PersonTrackCommand command = tracker.update(person_detections, now);
+        if (now - last_track_report_ms >= 1000) {
+            const float confidence = person_detections.empty() ? 0.0f :
+                person_detections.front().confidence;
+            LOG_INFO("Tracker input: objects=%d person_class0=%zu first_conf=%.2f threshold=%.2f command=(%d,%d) error=(%.2f,%.2f)\n",
+                     od_results.count, person_detections.size(), confidence,
+                     tracker_config.min_confidence, command.pan, command.tilt,
+                     command.error_x, command.error_y);
+            last_track_report_ms = now;
+        }
+        if (command.send) {
+            LOG_DEBUG("Person tracker: error=(%.3f,%.3f) step_deg=(%d,%d)\n",
+                      command.error_x, command.error_y, command.pan, command.tilt);
+            signal_adjust_pantilt.emit(command.pan, command.tilt);
         }
     }
     vi_chn_deinit(pipeId, viChannelId);

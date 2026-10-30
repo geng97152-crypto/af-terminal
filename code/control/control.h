@@ -19,25 +19,9 @@ struct ControlSignal {
 
 enum ModuleID {
     ID_UNKNOWN = 0,
-    ID_LED,             // LED模块
     ID_PANTILT,         // 摄像头控制模块
     ID_DISPLAY,         // 显示模块
     ID_VIDEO            // 视频模块
-};
-
-enum LEDOpcode {
-    OP_LED_ON = 0,      // 打开LED
-    OP_LED_OFF,         // 关闭LED
-    OP_LED_TOGGLE,      // 切换LED状态
-    OP_LED_BLINK,       // LED闪烁
-    OP_LED_MAX          // LED操作码最大值
-};
-
-enum LEDParam {
-    PA_LED0 = 0,        // LED0
-    PA_LED1,            // LED1
-    PA_LED2,            // LED2
-    PA_LED_MAX          // LED参数最大值
 };
 
 enum PantiltOpcode {

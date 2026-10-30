@@ -3,6 +3,9 @@
 
 #include "videoBase.h"
 #include "signal_slot.h"
+#include "lcd_detection.h"
+#include <vector>
+#include <atomic>
 
 class VideoYOLO : public VideoBase
 {
@@ -11,6 +14,8 @@ public:
     ~VideoYOLO();
 
     Signal<int, int> signal_adjust_pantilt;
+    // Publish a complete detection snapshot for the LCD thread.
+    Signal<std::vector<LcdDetection>> detection_signal;
 protected:
     // 观察者模式数据通信接口
     void notify(string msg) override;
@@ -33,7 +38,7 @@ private:
 
     std::thread *video_thread;
     void video_thread_func();
-    bool  quit_flag;
+    std::atomic<bool> quit_flag{false};
 
     VIDEO_FRAME_INFO_S stViFrame;
 

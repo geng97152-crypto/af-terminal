@@ -274,7 +274,6 @@ int rkipc_osd_bmp_destroy(int id) {
 }
 
 int rkipc_osd_bmp_change(int id, osd_data_s *osd_data) {
-	// LOG_DEBUG("id is %d\n", id);
 	int ret = 0;
 	RGN_HANDLE RgnHandle = id;
 	BITMAP_S stBitmap;

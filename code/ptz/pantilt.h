@@ -1,80 +1,50 @@
 #pragma once
-
-// #include "module.h"
+#include "abstractModule.h"
 #include "log.h"
 #include "param.h"
-#include <thread>
 #include <mutex>
-#include <condition_variable>
-#include "abstractModule.h"
-
+#include <string>
 extern "C" {
-    #include "pwm.h"
+#include "pwm.h"
 }
 
-class Pantilt : public BaseModule
-{
+// The public interface is shared by automatic tracking and TCP PTZ commands.
+class Pantilt : public BaseModule {
 public:
-    Pantilt(ModuleParams params);
+    explicit Pantilt(ModuleParams params);
     ~Pantilt();
-
     void up(int step);
-
     void down(int step);
-
     void left(int step);
-
     void right(int step);
-
-    void onAjustPantilt(int delta_pan, int delta_tilt);
-
     void reset();
-    
+    void onAjustPantilt(int delta_pan, int delta_tilt);
 protected:
     void notify(string msg) override;
     void update(Publisher* publisher, string msg) override;
-
 private:
-    // 当前Pan角度，范围：-180°~180°，角度大于0表示向左，小于0表示向右
-    int pan_angle = 0;
-    // 当前Tilt角度，范围：-45°~90°，角度大于0表示俯视，小于0表示仰视
-    int tilt_angle = 0;
-
-    const int pan_step_limit = 15;
-    const int tilt_step_limit = 15;
-    const int up_limit = -60;
-    const int down_limit = 90;
-    const int left_limit = -180; // 360度舵机
-    const int right_limit = 180; // 360度舵机
-    // const int left_limit = -90; // 180度舵机
-    // const int right_limit = 90; // 180度舵机
-    const int min_duty_cycle_ns = 500000;
-    const int max_duty_cycle_ns = 2500000;
-
-    // 云台预置点及回位时间
-    int preset_pan = 0;
-    int preset_tilt = 0;
-    int preset_home_enable = 0;
-    int preset_home_time = 0;
-
-    // 是否有操作
-    bool has_operation = false;  
-
-    // 线程：检查云台是否在归位位置
-    bool home_position_thread_run = true;
-    std::mutex mtx_home_position;
-    std::condition_variable cv_home_position;
-    std::thread home_position_thread;
-
-    // 设置俯仰角度
-    void setTilt(int angle);
-
-    // 设置旋转角度
-    void setPan(int angle);
-
-    // 检查并自动归位
-    void homePositionCheck();
-
-    // 辅助函数：将角度映射为 PWM 占空比
-    unsigned int mapAngleToDutyCycle(int angle, int max_angle);
+    struct Axis {
+        explicit Axis(PWM_num number) : pwm(number) {}
+        PWM_num pwm;
+        int angle = 0;
+        int minimum = -90;
+        int maximum = 90;
+        int direction = 1;
+        int home = 0;
+        int center_us = 1500;
+        int minimum_us = 1000;
+        int maximum_us = 2000;
+        bool ready = false;
+        bool enabled = false;
+        bool inversed = false;
+        bool active_low = false;
+        std::string polarity;
+    };
+    void initialize(Axis& axis, const char* name);
+    bool apply(Axis& axis, int angle);
+    void move(int pan_step, int tilt_step);
+    void shutdown(Axis& axis);
+    Axis pan_{PWM_PAN};
+    Axis tilt_{PWM_TILT};
+    std::mutex mutex_;
 };

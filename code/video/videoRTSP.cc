@@ -29,12 +29,6 @@ VideoRTSP::VideoRTSP(ModuleParams params):VideoBase(params)
 
 VideoRTSP::~VideoRTSP()
 {
-    // 释放特定于 RTSP 的资源
-    rtsp_release();
-    vi_dev_deinit();
-    rkmpi_sys_deinit();
-    rkaiq_deinit();
-
     quit_flag = true;
 
     if(video_thread->joinable()) {
@@ -42,9 +36,11 @@ VideoRTSP::~VideoRTSP()
     }
     delete video_thread;
 
-    if(stFrame.pstPack != nullptr){
-        free(stFrame.pstPack);
-    }
+    // 工作线程已停止 VENC/VI 后，再释放共享的底层资源。
+    rtsp_release();
+    vi_dev_deinit();
+    rkmpi_sys_deinit();
+    rkaiq_deinit();
 }
 void VideoRTSP::notify(std::string msg)
 {
@@ -87,10 +83,10 @@ void VideoRTSP::video_thread_func()
     while (!quit_flag)
     {
         // 获取编码后的帧，发送到 RTSP 服务器
-        rtsp_send_frame_h264(vencChannelId, &stFrame);
-
-        // 释放编码后的帧
-        venc_release_frame(vencChannelId, &stFrame);
+        if (rtsp_send_frame_h264(vencChannelId, &stFrame) == RK_SUCCESS) {
+            // 只有成功获取到编码帧后才能释放。
+            venc_release_frame(vencChannelId, &stFrame);
+        }
     }
 
     rkipc_osd_deinit();
@@ -100,5 +96,6 @@ void VideoRTSP::video_thread_func()
     venc_deinit(vencChannelId);
     vi_chn_deinit(pipeId, viChannelId);
     free(stFrame.pstPack);
+    stFrame.pstPack = nullptr;
     LOG_DEBUG("******************************VideoRTSP thread release success");
 }

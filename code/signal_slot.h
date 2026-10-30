@@ -9,10 +9,10 @@
 #include <mutex>
 #include <memory>
 
-template <typename... Args>
+template <typename... Args>//让一个模板可以接收**任意数量、任意类型**的模板参数。
 class Signal {
 public:
-    using Slot = std::function<void(Args...)>;
+    using Slot = std::function<void(Args...)>;//给接收函数类型取名为 Slot；它接收 Args... 参数，不返回值。
 
     // 连接成员函数
     template <typename T>
@@ -21,8 +21,8 @@ public:
             (object->*method)(args...);  // 调用成员函数
         };
         std::lock_guard<std::mutex> lock(mutex_);
-        slots.push_back(std::make_shared<Slot>(slot));  // 存储槽
-    }
+        slots.push_back(std::make_shared<Slot>(slot));  // 存储槽，把刚创建的 lambda 保存到列表里。
+    }//接收对象指针 object，以及这个对象的成员函数指针 method。
 
     // 连接成员函数
     template <typename T>

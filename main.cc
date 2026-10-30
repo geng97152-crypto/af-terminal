@@ -4,9 +4,7 @@
 #include "display.h"	// lcd
 #include "video_factory.h"
 #include "displayFactory.h"
-#include "ledFactory.h"
 #include "ptzFactory.h"
-#include "led.h"		// led
 #include "pantilt.h"	// pantilt
 #include "log.h"		// log
 #include "param.h"		// param
@@ -18,19 +16,17 @@
 #include <atomic>
 
 
-#define ONVIF_SERVER_ENABLE 	0
+#define ONVIF_SERVER_ENABLE 	0//ONVIF 服务模块。用于让摄像机被支持 ONVIF 的软件发现和控制
 
-#define LED_ENABLE 				1
-#define PTZ_ENABLE 				1
-#define DISPLAY_ENABLE 			1
+#define PTZ_ENABLE 				1//云台控制模块
+#define DISPLAY_ENABLE 			1//LCD 设备显示模块，负责打开 /dev/fb0，把图像写入 LCD framebuffer。
 
-#define VIDEORTSP_ENABLE 		1
-#define VIDEODISPLAY_ENABLE 	1
-#define VIDEOYOLO_ENABLE 		1
+#define VIDEORTSP_ENABLE 		1//RTSP 视频流模块
+#define VIDEODISPLAY_ENABLE 	1//LCD 图像采集和处理模块，是从摄像头视频通道获取帧
+#define VIDEOYOLO_ENABLE 		1//YOLO 目标检测模块
 
-#define UART_ENABLE 			0
-#define TCP_SERVER_ENABLE 		1
-
+#define UART_ENABLE 			0//串口通信模块
+#define TCP_SERVER_ENABLE 		0//普通 TCP 控制服务器
 
 char ini_path[] = "rkipc.ini";
 int rkipc_log_level = LOG_LEVEL_DEBUG;
@@ -38,7 +34,7 @@ int rkipc_log_level = LOG_LEVEL_DEBUG;
 std::atomic<bool> g_quit(false);	//全局标志位
 
 static void sigterm_handler(int sig) {
-	if (sig == SIGINT) {
+	if (sig == SIGINT || sig == SIGTERM) {
         g_quit = true; // 设置标志位
 		std::cout << "**************quit success sig:" << sig << std::endl;
     }
@@ -51,14 +47,15 @@ int main(int argc, char *argv[])
 	// 初始化基类工厂指针
 	BaseFactory* factory = nullptr;
 
-	// // 初始化参数
-    // if (rk_param_init(ini_path) != 0) {
-    //     LOG_ERROR("Failed to initialize parameters\n");
-    //     return EXIT_FAILURE;
-    // }
+	// 初始化参数。OSD 等模块会读取该配置，必须在创建模块前完成。
+    if (rk_param_init(ini_path) != 0) {
+        LOG_ERROR("Failed to initialize parameters\n");
+        return EXIT_FAILURE;
+    }
 
 	// Ctrl-c quit
 	signal(SIGINT, sigterm_handler);
+	signal(SIGTERM, sigterm_handler);
 
 #if ONVIF_SERVER_ENABLE
 	LOG_INFO("onvif Module init\n");
@@ -66,8 +63,8 @@ int main(int argc, char *argv[])
 #endif
 
 #if TCP_SERVER_ENABLE
-	ModuleParams TcpParam;
-	TcpParam.name = "TcpServer";
+	ModuleParams TcpParam;// 准备模块参数
+	TcpParam.name = "TcpServer";// 给模块取名
 	TcpServer* tcpServer = new TcpServer(TcpParam);
 	LOG_INFO("tcpServer Module init\n");
 #endif
@@ -78,9 +75,11 @@ int main(int argc, char *argv[])
 	LOG_INFO("PTZ Module init\n");
 	ModuleParams PTZParam;
 	PTZParam.name = "PTZ";
-	factory = new PtzFactory();
-	BaseModule* ptz = factory->createModule(PTZParam);
+	factory = new PtzFactory();//创建云台工厂
+	BaseModule* ptz = factory->createModule(PTZParam);//工厂创建模块
+#if TCP_SERVER_ENABLE
 	ptz->subscribe(tcpServer);
+#endif
 #endif
 
 #if DISPLAY_ENABLE
@@ -120,34 +119,25 @@ int main(int argc, char *argv[])
 	// videoDisplay->video_frame_signal.connect(dynamic_cast<Display*>(display.get()), &Display::push_frame);
 #endif
 
-#if VIDEODISPLAY_ENABLE && PTZ_ENABLE
+#if VIDEOYOLO_ENABLE && VIDEODISPLAY_ENABLE
+	LOG_INFO("videoYOLO connect to videoDisplay\n");
+	dynamic_cast<VideoYOLO*>(videoYOLO)->detection_signal.connect(
+		[videoDisplay](const std::vector<LcdDetection>& detections) {
+			dynamic_cast<VideoLCD*>(videoDisplay)->update_detections(detections);
+		}
+	);
+#endif
+
+#if VIDEOYOLO_ENABLE && PTZ_ENABLE
 	LOG_INFO("videoYOLO connect to PTZ\n");
-	// dynamic_cast<VideoYOLO*>(videoYOLO)->signal_adjust_pantilt.connect(dynamic_cast<Pantilt*>(ptz), &Pantilt::onAjustPantilt);
+	dynamic_cast<VideoYOLO*>(videoYOLO)->signal_adjust_pantilt.connect(
+		[ptz](int delta_pan, int delta_tilt) {
+			dynamic_cast<Pantilt*>(ptz)->onAjustPantilt(delta_pan, delta_tilt);
+		}
+	);
 #endif
 
 
-
-#if LED_ENABLE
-	// LED模块
-	LOG_INFO("led Module init\n");
-	factory = new LedFactory();
-	ModuleParams LEDParam;
-	// led0
-	LEDParam.pin = LED0;
-	LEDParam.name = "LED0";
-	BaseModule* led0 = factory->createModule(LEDParam);
-	led0->subscribe(tcpServer);
-
-	LEDParam.pin = LED1;
-	LEDParam.name = "LED1";
-	BaseModule* led1 = factory->createModule(LEDParam);
-	led1->subscribe(tcpServer);
-
-	LEDParam.pin = LED2;
-	LEDParam.name = "LED2";
-	BaseModule* led2 = factory->createModule(LEDParam);
-	led2->subscribe(tcpServer);
-#endif
 
 #if UART_ENABLE && TCP_SERVER_ENABLE
 	// 绑定tcp数据到串口发送
@@ -165,28 +155,15 @@ int main(int argc, char *argv[])
  	LOG_INFO("Program starting exited\n");
 
 try {
-	#if LED_ENABLE
-		delete led0;
-		led0 = nullptr;
-		delete led1;
-		led1 = nullptr;
-		delete led2;
-		led2 = nullptr;
+	#if VIDEOYOLO_ENABLE
+		delete videoYOLO;
+		videoYOLO = nullptr;
 	#endif
 
+	// Stop the detection producer before destroying its PTZ callback target.
 	#if PTZ_ENABLE
 		delete ptz;
 		ptz = nullptr;
-	#endif
-
-	#if DISPLAY_ENABLE
-		delete display;
-		display = nullptr;
-	#endif			
-
-	#if VIDEORTSP_ENABLE
-		delete videoRTSP;
-		videoRTSP = nullptr;
 	#endif
 
 	#if VIDEODISPLAY_ENABLE
@@ -194,9 +171,15 @@ try {
 		videoDisplay = nullptr;
 	#endif
 
-	#if VIDEOYOLO_ENABLE
-		delete videoYOLO;
-		videoYOLO = nullptr;
+	#if DISPLAY_ENABLE
+		delete display;
+		display = nullptr;
+	#endif
+
+	// VideoRTSP 拥有共享的 ISP、MPI、VI 和 RTSP 资源，必须最后销毁。
+	#if VIDEORTSP_ENABLE
+		delete videoRTSP;
+		videoRTSP = nullptr;
 	#endif
 
 	#if CONTROLLER_ENABLE
@@ -224,7 +207,7 @@ try {
     }
 
 	// delete tcpServer;
-	// rk_param_deinit();
+	rk_param_deinit();
     LOG_INFO("Program exited\n");
 	return 0;
 }

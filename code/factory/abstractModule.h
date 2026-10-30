@@ -1,6 +1,5 @@
 #pragma once
 
-#include "gpio.h"
 #include "publisher.h"
 #include "observer.h"
 #include "string"
@@ -17,7 +16,6 @@ struct VideoParams {
 
 struct ModuleParams {
     std::string name;
-    Gpio_num pin;                    
     struct VideoParams videoparams;        
 };
 

@@ -135,7 +135,6 @@ int OsdDraw::osd_rgn_add_tasks(std::vector<DrawTaskParams>& params)
     // 多个小任务封装成一批任务加入队列
     drawTasksQueue.push(batchTasks);
 
-    // LOG_DEBUG("add %d tasks to drawTasksQueue id", num);
     return 0;
 }
 

@@ -18,8 +18,6 @@ extern "C" {
 
 
 RK_U64 TEST_COMM_GetNowUs();
-// RK_S32 test_rgn_overlay_line_process(int sX ,int sY,int type, int group);
-// RK_S32 rgn_overlay_release(int group);
 
 
 

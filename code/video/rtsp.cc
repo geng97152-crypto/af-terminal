@@ -5,7 +5,7 @@
 #include "rk_mpi_mb.h"
 #include "log.h"
 
-pthread_mutex_t g_mutex;
+pthread_mutex_t g_mutex = PTHREAD_MUTEX_INITIALIZER;
 // rtsp demo handle
 rtsp_demo_handle g_rtsplive = NULL;    
 // rtsp session handle
@@ -55,7 +55,6 @@ void rtsp_release(void)
 
 int rtsp_send_frame_h264(int channelId, VENC_STREAM_S* stFrame)
 {
-    //RK_MPI_VENC_SendFrame(channelId, stVpssFrame, -1);
     // rtsp			从编码器中获取已经编码好的视频流。
     RK_S32 s32Ret = RK_MPI_VENC_GetStream(channelId, stFrame, -1);
     if(s32Ret == RK_SUCCESS)
@@ -101,12 +100,12 @@ int rtsp_send_frame_h264(int channelId, VENC_STREAM_S* stFrame)
                 break;
         }
     }
-    return 0;
+    return s32Ret;
 }
 
 int venc_release_frame(int channelId, VENC_STREAM_S* stFrame)
 {
-    RK_S32 s32Ret = RK_MPI_VENC_ReleaseStream(0, stFrame);
+    RK_S32 s32Ret = RK_MPI_VENC_ReleaseStream(channelId, stFrame);
     if (s32Ret != RK_SUCCESS) {
         printf("RK_MPI_VENC_ReleaseStream error\n");
         return -1;

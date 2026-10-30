@@ -224,7 +224,6 @@ int venc_deinit(int chnId) {
 
 RK_U64 TEST_COMM_GetNowUs() {
 	struct timespec time = {0, 0};
-	// clock_gettime(CLOCK_MONOTONIC, &time);
 	clock_gettime(1, &time);
 	return (RK_U64)time.tv_sec * 1000000 + (RK_U64)time.tv_nsec / 1000; /* microseconds */
 }
@@ -348,7 +347,6 @@ int rkaiq_init(void)
 	const char *iq_dir = "/etc/iqfiles";
 	rk_aiq_working_mode_t hdr_mode = RK_AIQ_WORKING_MODE_NORMAL;
 	// 1. 启动ISP 算法实现自动曝光控制、自动增益控制、自动白平衡、色彩校正等操作，保证捕获图像的质量
-	// SAMPLE_COMM_ISP_Init(CamId, hdr_mode, multi_sensor, iq_dir);
 	SAMPLE_COMM_ISP_Init(0, hdr_mode, multi_sensor, iq_dir);
 	// 2. 运行 ISP 算法
 	SAMPLE_COMM_ISP_Run(0);

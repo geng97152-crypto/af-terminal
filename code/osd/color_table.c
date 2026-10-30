@@ -108,7 +108,6 @@ unsigned char find_color(const unsigned int *pal, unsigned int len, unsigned cha
 
 	smallest = ~0;
 
-	// LOG_DEBUG("find_color rgba_value %8x", (0xFF << 24 | r << 16 | g <<8 | b
 	// <<0));
 
 	for (i = 0; i < len; ++i) {
@@ -132,7 +131,6 @@ unsigned char find_color(const unsigned int *pal, unsigned int len, unsigned cha
 		}
 	}
 
-	// LOG_DEBUG("find_color pixel %d pal[%d][%d] %8x", pixel, pixel/6, pixel%6,
 	// pal[pixel]);
 
 	return pixel;

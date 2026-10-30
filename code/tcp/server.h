@@ -13,7 +13,6 @@
 #include <mutex>
 #include <thread>
 #include <vector>
-#include <atomic>
 #include <string.h>
 #include "signal_slot.h"
 #include "publisher.h"  
@@ -47,9 +46,6 @@ private:
     std::thread* server_thread;
     std::vector<std::thread> client_threads;
 
-    std::thread* timer_thread;      // 定时器线程
-    std::atomic<bool> timer_running; // 定时器运行标志
-    void timer_func(); // 定时器线程函数
 
     void server_thread_func();
     void client_handler(int clientSocket);
